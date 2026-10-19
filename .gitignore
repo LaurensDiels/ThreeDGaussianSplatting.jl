@@ -1,1 +1,16 @@
-/Manifest*.toml
+/.vscode
+/.idea
+/.history
+/docs/build
+/docs/src/*.pptx
+
+# Ignore everything under deps, except for .cu and .jl
+/deps/*
+/deps/**/*
+!/deps/**/
+!/deps/**/*.cu
+!/deps/**/*.jl
+
+/dev
+Manifest.toml
+imgui.ini
