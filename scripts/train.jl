@@ -159,7 +159,8 @@ function train(
         save_path = joinpath(save_dir, "point_cloud.ply")
         # TODO: this is not a point cloud, so why call it that?
         save_to_ply(save_path, gaussians)
-        println("Saved Gaussians model after $(t.iteration_nb) iterations to $save_path")
+        println("Saved Gaussians model after $(trainer.iteration_nb) iterations to \
+                 $save_path")
     end
 
     should_save() = should_save(trainer.iteration_nb, save_iterations)
