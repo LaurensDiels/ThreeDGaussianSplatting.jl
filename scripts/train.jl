@@ -226,7 +226,8 @@ function process_colmap(images_dir)
         "--database_path", db_path,
         "--image_path", images_dir,
         "--ImageReader.camera_model", "OPENCV", 
-        "--ImageReader.single_camera", "1"
+        "--ImageReader.single_camera", "1",
+        "--FeatureExtraction.use_gpu", "1"
     ]
     run(Cmd(cmd_args))
 
@@ -234,7 +235,7 @@ function process_colmap(images_dir)
         colmap_base_cmd_args...,
         "exhaustive_matcher",
         "--database_path", db_path,
-        "--SiftMatching.use_gpu", "1"
+        "--FeatureMatching.use_gpu", "1"
     ]
     run(Cmd(cmd_args))
 
