@@ -14,6 +14,10 @@ nvcc, either on PATH, or via ENV["TDGS_NVCC"]
 
 compatible compiler (cl.exe for Windows (normally the 64-bit version), from compatible VS version; g++ for Linux)
 
+ENV["TDGS_HOST_COMPILER"] (also to force a specific version, e.g. g++-12)
+
+CUB
+
 colmap (for training only), either on PATH, or via ENV["TDGS_COLMAP]
 
 Julia (v1.13+?)

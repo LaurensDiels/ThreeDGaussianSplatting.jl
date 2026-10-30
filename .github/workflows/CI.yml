@@ -23,7 +23,6 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
           - '1.13'
           - 'pre'
         os:
@@ -39,3 +38,5 @@ jobs:
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+        with:
+          prefix: xvfb-run  # For CImGui and GLFW

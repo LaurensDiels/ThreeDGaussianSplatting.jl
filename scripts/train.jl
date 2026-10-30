@@ -199,7 +199,7 @@ camera (model) is used. The output files will be written inside a sibling direct
 "colmap" of `images_dir`.
 
 We return the directory containing the SfM results in .txt form.
-"""  # TODO: use .bin
+"""  # TODO: use .bin, compatibility with reference 3DGS
 function process_colmap(images_dir)
     colmap_output_dir = normpath(joinpath(images_dir, "..", "colmap"))
     mkpath(colmap_output_dir)

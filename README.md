@@ -10,7 +10,7 @@ julia> using Pkg; Pkg.add(url="https://github.com/LaurensDiels/ThreeDGaussianSpl
 
 julia> using ThreeDGaussianSplatting
 
-julia> Scripts.train("/path/to/images/directory")
+julia> Scripts.train("/path/to/images/directory", "/path/to/output/directory")
 
 julia> Scripts.render("/path/to/trained/3DGS/model")
 ```

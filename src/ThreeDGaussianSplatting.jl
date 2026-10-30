@@ -55,4 +55,6 @@ for n in names(@__MODULE__; all = true)
 end
 # Note: the submodule Scripts is exported, but the methods within are not
 
+# TODO: Precompilation (if CUDA.functional())
+
 end

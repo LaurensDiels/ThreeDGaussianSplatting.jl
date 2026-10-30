@@ -1184,32 +1184,43 @@ function adam_sh_coeffs_update_kernel!(
 
         c = one(I)  # color index
         while c <= I(3)
-            # Handle [i, c] using 1D index idx
+            # Handle [i, c] and [m, i, c] (m in {1, 2}: moment order) using 1D indices
+            # idx and ms_idx:
+            #   idx == i + (c - 1) * MAX_SH_ORDER == i + c_offset
+            # and
+            #   ms_idx == m + (i - 1) * 2 + (c - 1) * MAX_SH_ORDER * 2
+            #          == m + (idx - 1) * 2
+            # For m == 1:
+            #   ms_idx == 2 * idx - 1
+            # For m == 2 we just increment this by one
             c_offset = (c - one(I)) * MAX_SH_ORDER
             idx = one(I) + c_offset  # i = 1
+            ms_idx = I(2) * idx - one(I)
             new_param, new_m1, new_m2 = scalar_adam_update(
                 sh_coeffs_view[idx], grads[idx],
-                ms[1, idx], ms[2, idx], lr_dc,
+                ms[ms_idx], ms[ms_idx + one(I)], lr_dc,
                 opt.update_count,
                 opt.beta1, opt.beta2, opt.epsilon
             )
             sh_coeffs_view[idx] = new_param
-            ms[1, idx] = new_m1
-            ms[2, idx] = new_m2
+            ms[ms_idx] = new_m1
+            ms[ms_idx + one(I)] = new_m2
 
             i = I(2)
             while i <= MAX_SH_ORDER
                 # TODO: test split like in sh.jl
                 idx = i + c_offset
+                ms_idx = I(2) * idx - one(I)
                 new_param, new_m1, new_m2 = scalar_adam_update(
                     sh_coeffs_view[idx], grads[idx],
-                    ms[1, idx], ms[2, idx], lr_rest,  # the lr is the only difference
+                    ms[ms_idx], ms[ms_idx + one(I)], lr_rest,
+                    # the lr is the only difference
                     opt.update_count,
                     opt.beta1, opt.beta2, opt.epsilon
                 )
                 sh_coeffs_view[idx] = new_param
-                ms[1, idx] = new_m1
-                ms[2, idx] = new_m2
+                ms[ms_idx] = new_m1
+                ms[ms_idx + one(I)] = new_m2
 
                 i += one(I)
             end
