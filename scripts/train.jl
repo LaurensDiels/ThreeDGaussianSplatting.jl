@@ -250,7 +250,7 @@ function process_colmap(images_dir)
         "--Mapper.ba_refine_principal_point", "1",
         "--Mapper.ba_refine_extra_params", "1"
     ]
-    # (We can handle a non-centred principal point)
+    # (We can handle a non-centered principal point)
     run(Cmd(cmd_args))
 
     # There might now be multiple models: 0, 1, etc. We will use the one with the biggest
