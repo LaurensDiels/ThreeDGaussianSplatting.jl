@@ -2,6 +2,7 @@
 
 [![Build Status](https://github.com/LaurensDiels/ThreeDGaussianSplatting.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/ladiels/ThreeDGaussianSplatting.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 
+Note that the actual tests are skipped as CUDA is not available.
 
 ## Quick start
 

@@ -26,12 +26,9 @@ makedocs(
         ),
         size_threshold = nothing
     ),
-    remotes = nothing
 )
 
 
-#=
 deploydocs(
     repo = "github.com/LaurensDiels/ThreeDGaussianSplatting.jl.git",
 )
-=#
