@@ -1,6 +1,8 @@
 # Will compile cub_sort_pairs_wrapper.cu for Device 0
 # nvcc and the cpu compiler need to be on PATH, or specified via ENV
 
+# TODO: artifact?
+
 using CUDA
 
 if CUDA.functional()

@@ -6,15 +6,15 @@ An implementation of 3D Gaussian Splatting in the Julia programming language.
 
 ### Prerequisites
 
-- An NVIDIA graphics card
+- An NVIDIA graphics card.
 
 - Julia 1.13 (or newer). The recommended way to install Julia is via [Juliaup](https://github.com/julialang/juliaup). You can find instructions at https://julialang.org/downloads/.
 
 - CUDA toolkit. 
 
-    You can download it from https://developer.nvidia.com/cuda-downloads. Note that on Windows you also need [Visual Studio](https://visualstudio.microsoft.com/) integration. Properly installing CUDA toolkit can be tricky both on Windows and Linux. NVIDIA provides detailed instructions:
-    - For Windows: https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html
-    - For Linux: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html
+    You can download it from <https://developer.nvidia.com/cuda-downloads>. Note that on Windows you also need [Visual Studio](https://visualstudio.microsoft.com/) integration. Properly installing CUDA toolkit can be tricky both on Windows and Linux. NVIDIA provides detailed instructions:
+    - For Windows: <https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html>
+    - For Linux: <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>
 
     In particular we need `nvcc`. By default we assume it is on the `PATH` (i.e. you do not get an error when entering `nvcc --version` in a terminal). If not, or if you want to manually select the correct version if you have multiple versions of CUDA toolkit installed, you can use `ENV["TDGS_NVCC"] = ...` to point to the correct executable. This environment variable must be set before the build step, so normally before `add`ing `ThreeDGaussianSplatting` (see below).
     - Note that `cl.exe` comes in 32- and 64-bit versions. You almost certainly need the 64-bit one.
@@ -53,7 +53,7 @@ julia> using ThreeDGaussianSplatting
 
 julia> Scripts.train("/path/to/images/directory", "/path/to/output/directory")
 ```
-(using appropriate paths). By default this will show the training process using an interactive GUI. This will make training a bit slower. If you do not need the gui, you can use set the keyword argument `show_gui` to `false`:
+(using appropriate paths). By default this will show the training process using an interactive GUI. This will make training a bit slower. If you do not need the gui, you can set the keyword argument `show_gui` to `false`:
 ```julia-repl
 julia> Scripts.train(...; show_gui = false)
 ```
@@ -74,8 +74,8 @@ The path here can refer to a trained `.ply` file, or the output directory from t
 
 
 ## Links
-- Reference 3DGS implementation: https://github.com/graphdeco-inria/gaussian-splatting
-- Another Julia implementation: https://github.com/JuliaNeuralGraphics/GaussianSplatting.jl
+- Reference 3DGS implementation: <https://github.com/graphdeco-inria/gaussian-splatting>
+- Another Julia implementation: <https://github.com/JuliaNeuralGraphics/GaussianSplatting.jl>
 
 
 ## Contents
