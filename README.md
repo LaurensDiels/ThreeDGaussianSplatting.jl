@@ -1,8 +1,8 @@
 # ThreeDGaussianSplatting
 
-[![Build Status](https://github.com/LaurensDiels/ThreeDGaussianSplatting.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/ladiels/ThreeDGaussianSplatting.jl/actions/workflows/CI.yml?query=branch%3Amaster)
+[![Build Status](https://github.com/LaurensDiels/ThreeDGaussianSplatting.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/LaurensDiels/ThreeDGaussianSplatting.jl/actions/workflows/CI.yml?query=branch%3Amaster) [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://laurensdiels.github.io/ThreeDGaussianSplatting.jl/dev/)
 
-Note that the actual tests are skipped as CUDA is not available.
+Note that the actual tests are skipped in the CI as CUDA is not available there.
 
 ## Quick start
 
