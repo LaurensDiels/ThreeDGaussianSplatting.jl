@@ -682,7 +682,9 @@ function RenderOptions(
     kwargs...
 ) where {I, F}
     width = get_width(camera); height = get_height(camera)
-    return RenderOptions(width, height, sh_degree, boundary_clipping_mode; kwargs...)
+    return RenderOptions(
+        width, height, sh_degree, boundary_clipping_mode; 
+        int_type = I, float_type = F, kwargs...)
 end
 
 @inline int_type(::RenderOptions{I}) where I = I
