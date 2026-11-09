@@ -1,6 +1,6 @@
 """
     render!(
-        outputs::RenderOutputs{CPU, <:Any, F},
+        outputs::AbstractRenderOutputs{CPU, <:Any, F},
         gaussians::AbstractGaussiansVector{CPU, I, F},
         camera::AbstractCamera{I, F},
         _,
@@ -23,7 +23,7 @@ provide an unused tiling parameter slot.
 - `buffers`'s Filtered2DGaussiansVector is mutable.
 """
 function render!(
-    outputs::RenderOutputs{CPU, <:Any, F},
+    outputs::AbstractRenderOutputs{CPU, <:Any, F},
     gaussians::AbstractGaussiansVector{CPU, I, F},
     camera::AbstractCamera{I, F},
     _,
@@ -35,8 +35,10 @@ function render!(
     f2dgv = buffers.f2dgv
     empty!(f2dgv)
 
-    rgb_image = get_rgb_image(outputs)
-    fill!(rgb_image, zero(F))
+    if has_rgb_image(outputs)  # Check gets compiled away
+        rgb_image = get_rgb_image(outputs)
+        fill!(rgb_image, zero(F))
+    end
     has_transmittance_image(outputs) || throw(ArgumentError(
         "The `RenderOutputs` has to include the transmittance image!"))
     transmittance_image = get_transmittance_image(outputs)
@@ -76,7 +78,8 @@ function render!(
         end
         cov2d_11, cov2d_21, cov2d_22 = project_covariance_lower_sv(g, J)
         if use_antialiasing
-            undilated_cov2d_det = cov2d_11 * cov2d_22 - cov2d_21 * cov2d_21
+            undilated_cov2d_det = max(cov2d_11 * cov2d_22 - cov2d_21 * cov2d_21, zero(F))
+            # Should already be >= 0, but there might be small numerical errors
         end
         cov2d_11 += get_dilation_x(options)
         cov2d_22 += get_dilation_y(options)
@@ -152,9 +155,11 @@ function render!(
                 next_T < min_transmittance && continue
                 
                 weight = alpha * current_T
-                @view(rgb_image[:, v, u]) .+= weight .* get_color_sv(f2dg)
+                if has_rgb_image(outputs)
+                    @view(rgb_image[:, v, u]) .+= weight .* get_color_sv(f2dg)
+                end
                 transmittance_image[v, u] = next_T
-                if has_depth_image(outputs)  # Check gets compiled away
+                if has_depth_image(outputs)
                     get_depth_image(outputs)[v, u] += weight * get_depth(f2dg)
                 end
                 # last_contributing_sdfgids does not make sense as we don't duplicate
@@ -164,15 +169,17 @@ function render!(
 
     end
 
-    rgb_image .+= reshape(transmittance_image, (1, h, w)) .* 
-                    reshape(get_background_color(options), (3, 1, 1))
+    if has_rgb_image(outputs)
+        rgb_image .+= reshape(transmittance_image, (1, h, w)) .* 
+                        reshape(get_background_color(options), (3, 1, 1))
+    end
     return outputs
 end
 
 
 """
     render!(
-        outputs::RenderOutputs{G, <:Any, F},
+        outputs::AbstractRenderOutputs{G, <:Any, F},
         gaussians::AbstractGaussiansVector{G, I, F},
         camera::AbstractCamera{I, F},
         tiling::Tiling{I},
@@ -187,7 +194,7 @@ GPU version for rendering the 3D `gaussians` into the `outputs`, for the provide
 - `buffers`'s Filtered2DGaussiansVector is mutable and must point to `gaussians`.
 """
 function render!(
-    outputs::RenderOutputs{G, <:Any, F},
+    outputs::AbstractRenderOutputs{G, <:Any, F},
     gaussians::AbstractGaussiansVector{G, I, F},
     camera::AbstractCamera{I, F},
     tiling::Tiling{I},
@@ -441,7 +448,8 @@ function project_fgaussians_kernel!(
         # TODO: could use SymmetricSMatrix cov2d
         #   det, unrolled_inv (which contains det)
         if use_antialiasing
-            undilated_cov2d_det = cov2d_11 * cov2d_22 - cov2d_21 * cov2d_21
+            undilated_cov2d_det = max(cov2d_11 * cov2d_22 - cov2d_21 * cov2d_21, zero(F))
+            # Should not be negative, but might be due to numerical errors
         end
         cov2d_11 += get_dilation_x(options)
         cov2d_22 += get_dilation_y(options)
@@ -703,7 +711,7 @@ function fill_tiles_end_sdfgidx_kernel!(
             # [tiles_end_sdfgidx[tidx - 1] + 1, tiles_end_sdfgidx[tidx]],
             # so we can indicate emptyness by setting tiles_end_sdfgidx to the same
             # value for all inbetween tiles. Hence the while-loop.
-            @inbounds tiles_end_sdfgidx[current_tile_idx] = sdfgidx
+            tiles_end_sdfgidx[current_tile_idx] = sdfgidx
             current_tile_idx += one(I)
         end
         sdfgidx += stride
@@ -777,8 +785,10 @@ function render_tiles_kernel!(
     # matrix (3). Conveniently we store these continguously in a single array.
     # We also need to load in the colors.
     shmem_gaussian_eval_params = CuStaticSharedArray(F, (6, NB_SHMEM_GAUSSIANS))
-    shmem_colors = CuStaticSharedArray(SVector{3, F}, NB_SHMEM_GAUSSIANS)
-    # (Faster separately than combined)
+    if has_rgb_image(outputs)
+        shmem_colors = CuStaticSharedArray(SVector{3, F}, NB_SHMEM_GAUSSIANS)
+        # (Faster separately than combined)
+    end
     # TODO: Explicit2DGaussians... (see _structs)
     if has_depth_image(outputs)  # statically known
         shmem_depths = CuStaticSharedArray(F, NB_SHMEM_GAUSSIANS)
@@ -811,9 +821,11 @@ function render_tiles_kernel!(
 
     px_transmittance = one(F)  # (also needed when !has_transmittance_image(outputs))
     # Transmittance after encountering the first n Gaussians (currently: n = 0)
-    px_color = zero(MVector{3, F})
-    # This is only needed if px_within_screen, but only conditionally declaring it
-    # leads to worse performance
+    if has_rgb_image(outputs)
+        px_color = zero(MVector{3, F})
+        # This is only needed if px_within_screen, but only conditionally declaring it
+        # leads to worse performance
+    end
         
     if has_depth_image(outputs)  # (Fine here: statically known -> compiled away)
         px_depth = zero(F)
@@ -876,7 +888,9 @@ function render_tiles_kernel!(
             shmem_gaussian_eval_params[6, thread_idx_within_block] =
                 F(-0.5) * (ic11_du * du + ic22_dv * dv) - ic21_du * dv + log(opacity)
 
-            shmem_colors[thread_idx_within_block] = get_color_sv(f2dg)
+            if has_rgb_image(outputs)
+                shmem_colors[thread_idx_within_block] = get_color_sv(f2dg)
+            end
 
             if has_depth_image(outputs)
                 shmem_depths[thread_idx_within_block] = get_depth(f2dg)
@@ -940,7 +954,9 @@ function render_tiles_kernel!(
             
             # (px_transmittance is still the transmittance after the previous Gaussian)
             px_weight = px_transmittance * px_alpha
-            px_color .+= px_weight .* shmem_colors[shmem_idx]
+            if has_rgb_image(outputs)
+                px_color .+= px_weight .* shmem_colors[shmem_idx]
+            end
             px_transmittance = px_next_transmittance
             if has_depth_image(outputs) 
                 px_depth += px_weight * shmem_depths[shmem_idx]
@@ -957,11 +973,10 @@ function render_tiles_kernel!(
     end
 
     @inbounds if px_within_screen
-        px_color .+= px_transmittance .* background_color
-
-        rgb_image = get_rgb_image(outputs)
-        view(rgb_image, SOneTo(3), px_v, px_u) .= px_color
-
+        if has_rgb_image(outputs)
+            px_color .+= px_transmittance .* background_color
+            view(get_rgb_image(outputs), SOneTo(3), px_v, px_u) .= px_color
+        end
         if has_transmittance_image(outputs)
             get_transmittance_image(outputs)[px_v, px_u] = px_transmittance
         end

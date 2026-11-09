@@ -847,53 +847,53 @@ function save_to_ply(
 #  considered more specific than e.g. 
 #  AbstractTrainableGaussiansVector{CPU, <:Any, F}) where F )
     h = size(tgv.sh_coeffs, 1)
-    _maybe_convert_to_ply_float_double = if use_float_double 
-        _convert_to_ply_float_double
+    convert_to_vector_maybe_ply_float_double = if use_float_double 
+        collect ∘ _convert_to_ply_float_double
     else
-        identity
+        collect
     end
+    # ArrayProperty really requires Vectors, not SubArrays or ReinterpretArrays
 
     ply = Ply()
     means_aps = (ArrayProperty(
         n, 
-        _maybe_convert_to_ply_float_double(tgv.means_opacity_features[i, :])
+        convert_to_vector_maybe_ply_float_double(tgv.means_opacity_features[i, :])
     ) for (n, i) in (("x", 1), ("y", 2), ("z", 3)))
     # Generator of ArrayProperties, where each contains a Vector of one of the three
     # components (x, y or z)
-    # Note: ArrayProperty really requires Vector, so view etc. are not allowed 
     normals_aps = if include_normals
-        (ArrayProperty(n, _maybe_convert_to_ply_float_double(zeros(F, length(tgv)))) 
+        (ArrayProperty(n, convert_to_vector_maybe_ply_float_double(zeros(F, length(tgv)))) 
         for n in ("nx", "ny", "nz"))
     else
         ()
     end
     opacity_features_ap = ArrayProperty(
         "opacity", 
-        _maybe_convert_to_ply_float_double(tgv.means_opacity_features[4, :]))
+        convert_to_vector_maybe_ply_float_double(view(tgv.means_opacity_features, 4, :)))
     scaling_features_aps = (ArrayProperty(
         "scale_$(i - 1)", 
-        _maybe_convert_to_ply_float_double(tgv.scaling_features[i, :])
+        convert_to_vector_maybe_ply_float_double(view(tgv.scaling_features, i, :))
     ) for i = 1:3)
     # Again, each component is one ArrayProperty; zero-indexed names
     rotation_features_aps = (ArrayProperty(
         "rot_$(i - 1)", 
-        _maybe_convert_to_ply_float_double(tgv.rotation_features[i, :])
+        convert_to_vector_maybe_ply_float_double(view(tgv.rotation_features, i, :))
     ) for i = 1:4)
     sh_coeffs_dc_aps = (ArrayProperty(
         "f_dc_$(c - 1)", 
-        _maybe_convert_to_ply_float_double(tgv.sh_coeffs[1, c, :]) 
+        convert_to_vector_maybe_ply_float_double(view(tgv.sh_coeffs, 1, c, :)) 
     ) for c = 1:3)
     # DC (degree 0) SH coefficients
     sh_coeffs_rest_aps = if !force_sh_degree_3
         (ArrayProperty(
             "f_rest_$((c - 1) * (h - 1) + i - 2)", 
-            _maybe_convert_to_ply_float_double(tgv.sh_coeffs[i, c, :])
+            convert_to_vector_maybe_ply_float_double(view(tgv.sh_coeffs, i, c, :))
         ) for c = 1:3 for i = 2:h)
     else
         (ArrayProperty(
             "f_rest_$((c - 1) * 15 + i - 2)", 
-             _maybe_convert_to_ply_float_double(
-                i <= h ? tgv.sh_coeffs[i, c, :] : zeros(F, length(tgv)))
+             convert_to_vector_maybe_ply_float_double(
+                i <= h ? view(tgv.sh_coeffs, i, c, :) : zeros(F, length(tgv)))
         ) for c = 1:3 for i = 2:16)
     end
     # All other SH coefficients, in the order of first all R components ([0, 14] 
@@ -914,11 +914,11 @@ function save_to_ply(
 end
 
 struct PlyFloat
-    x::Float32
+    val::Float32
 end
 
 struct PlyDouble
-    x::Float64
+    val::Float64
 end
 
 PlyIO.ply_type_name(::PlyFloat)         = "float"
@@ -929,18 +929,43 @@ PlyIO.ply_type_name(::Type{PlyDouble})  = "double"
 """
     _convert_to_ply_float_double(x)
 
-Convert (without allocations) a `Vector{Float32}` into a `Vector{PlyFloat}` and a
-`Vector{Float64}` into a `Vector{Float64}` into a `Vector{PlyDouble}`. Other inputs are
-simply returned.
+Convert (without allocations) an `AbstractVector{Float32}` into an
+`AbstractVector{PlyFloat}` and a `AbstractVector{Float64}` into an
+`AbstractVector{PlyDouble}`. Other inputs are simply returned.
 """
 _convert_to_ply_float_double(x) = x
-_convert_to_ply_float_double(x::Vector{Float32}) = 
-    unsafe_wrap(Array, Ptr{PlyFloat}(pointer(x)), size(x))
-# Similar to reinterpret(PlyFloat, x), but returns a `Vector{PlyFloat}` instead of a
-# reinterpret(PlyFloat, ::Vector{Float32}), which ArrayProperty does not support.
-_convert_to_ply_float_double(x::Vector{Float64}) = 
-    unsafe_wrap(Array, Ptr{PlyDouble}(pointer(x)), size(x))
+_convert_to_ply_float_double(x::AbstractVector{Float32}) = reinterpret(PlyFloat, x)
+_convert_to_ply_float_double(x::AbstractVector{Float64}) = reinterpret(PlyDouble, x)
 
+Base.write(io::IO, x::PlyFloat) = write(io, x.val)
+Base.write(io::IO, x::PlyDouble) = write(io, x.val)
+
+# Fix a bug in PlyIO v1.2 (without getting precompilation errors)
+function PlyIO.write_binary_values(
+    stream::IO, elen::Int64,  # more specific signature
+    props...)
+    for i in 1:elen
+        for p in props 
+            PlyIO.write_binary_value(stream, p, i)  # had property instead of p
+        end
+    end
+end
+
+function PlyIO.write_binary_values(
+    stream::IO, elen::Int64, 
+    props::ArrayProperty{T}...
+) where {T}
+    batchsize = 100
+    numprops = length(props)
+    buf = Matrix{T}(undef, numprops, batchsize)
+    for i=1:batchsize:elen
+        thisbatchsize = min(batchsize, elen-i+1)
+        for j=1:numprops
+            buf[j,1:thisbatchsize] = props[j].data[i:i+thisbatchsize-1]
+        end
+        unsafe_write(stream, pointer(buf), sizeof(T)*numprops*thisbatchsize)
+    end
+end  # Needed to avoid ambiguity
 
 # Inline every small helper method
 @inline array_domain(::AbstractGaussiansVector{D}) where D = D

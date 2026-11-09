@@ -402,6 +402,20 @@ Base.@propagate_inbounds function Base.view(
     )
 end
 
+"""
+    maybe_unsafe_free!(gamlrv::AbstractGaussianAdamMomentsLearningRatesVector)
+
+Call `maybe_unsafe_free!` on the underlying arrays.
+"""
+function maybe_unsafe_free!(gamlrv::AbstractGaussianAdamMomentsLearningRatesVector)
+    GAMLRV = typeof(gamlrv)
+    for (fn, ft) in zip(fieldnames(GAMLRV), fieldtypes(GAMLRV))
+        ft <: AbstractArray && maybe_unsafe_free!(getfield(gamlrv, fn))
+    end
+    return nothing
+end
+
+
 struct GaussianAdamMomentsLearningRate{
     D <: ArrayDomain,
     I <: Integer,
@@ -1383,3 +1397,12 @@ adaptive_density_control!(
     should_prune, should_clone, should_split,
     new_gaussian_counts_cs, nb_ngaussians
 )
+
+"""
+    maybe_unsafe_free!(opt::AbstractAdamOptimizer)
+
+Call `maybe_unsafe_free!` on the underlying `moments_learning_rates`, _not_
+on the Gaussians vector.
+"""
+maybe_unsafe_free!(opt::AbstractAdamOptimizer) = 
+    maybe_unsafe_free!(opt.moments_learning_rates)

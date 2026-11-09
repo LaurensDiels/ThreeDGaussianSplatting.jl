@@ -14,7 +14,7 @@ path.
     this parameter will force to use the model with the specified number of training
     iterations.
 """
-function render(path; iterations=nothing)
+function render(path; iterations = nothing)
     D = GPU; I = Int32; F = Float32 
     if isdir(path)  # 3DGS output dir
         # Take point_cloud/iteration_n/point_cloud.ply for largest/provided n
@@ -31,7 +31,6 @@ function render(path; iterations=nothing)
         camera = first(load_cameras_from_json(
             joinpath(path, "cameras.json");
             int_type = I, float_type = F))
-
     else  # .ply
         gaussians_path = path
 
@@ -48,17 +47,8 @@ function render(path; iterations=nothing)
         gaussians_path;
         array_domain = D, int_type = I, float_type = F)
 
-    render_options = RenderOptions(camera, get_sh_degree(gaussians))
-    tiling = Tiling(camera)
-    render_buffers = MutableRenderBuffers(gaussians, tiling)
-
-    gui = GUI(
-        gaussians,
-        camera,
-        tiling,
-        render_options,
-        render_buffers
-    )
+    gui = GUI(gaussians)
+    set_camera!(gui, camera)
     while !has_stopped(gui)
         update!(gui)
     end

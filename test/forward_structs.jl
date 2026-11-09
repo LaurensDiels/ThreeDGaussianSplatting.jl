@@ -1,6 +1,6 @@
 @testset "RenderOutputs" begin
     w = 1280; h = 720
-    ro = RenderOutputs(
+    ro = MutableRenderOutputs(
         ones(3, h, w), nothing, zeros(h, w), nothing
     )
 
@@ -16,28 +16,23 @@
     @test get_last_contributing_sdfgids(ro) === nothing
 
     gro = GPU(ro)
-    @test gro isa RenderOutputs{<:GPU}
+    @test gro isa MutableRenderOutputs{<:GPU}
     @test get_rgb_image(gro) isa CuArray
     @test get_transmittance_image(gro) === nothing
+
+    dro = Device(ro)
+    @test dro isa ImmutableRenderOutputs{<:Device}
+    @test get_rgb_image(dro) isa CuDeviceArray
+    @test get_transmittance_image(dro) === nothing
 
     maybe_unsafe_free!(ro)
     r = get_rgb_image(ro)  # test: does not error
     maybe_unsafe_free!(gro)
     @test_throws "freed" get_rgb_image(gro)[1:1]
 
-    sro = TDGS.resize!(ro, (10, 20))  # shrink, reuse memory
-    @test eltype(ro) === eltype(sro)  # inclusing all nothings
-    @test size(sro) == (10, 20)
-    @test get_width(sro) == 20 && get_height(sro) == 10
-    get_rgb_image(sro)[1, 1, 1] = 123.
-    @test get_rgb_image(ro)[1, 1, 1] == 123.  # same memory
-    get_rgb_image(sro)[1, 1, 1] = 1.  # set it back
-
-    lro = TDGS.resize!(sro, (h, w))  # enlarge, new memory
-    @test eltype(lro) === eltype(sro)
-    @test size(lro) === (h, w)
-    get_rgb_image(lro) .= -1.
-    @test get_rgb_image(ro)[1, 1, 1] == 1.
+    TDGS.resize!(ro, (10, 20))  # shrink, reuse memory
+    @test size(ro) == (10, 20)
+    @test get_width(ro) == 20 && get_height(ro) == 10
 end
 
 @testset "Tiling and Rectangle" begin

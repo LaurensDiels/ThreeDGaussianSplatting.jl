@@ -575,6 +575,9 @@ Like [`focal_length_to_fov`](@ref) but with the FOV in degrees.
     focal_length_to_fov(get_focal_length_y(cam), get_height(cam))
 @inline get_fov_y_deg(cam::PinholeCamera) = rad2deg(get_fov_y(cam))
 @inline get_skew(cam::PinholeCamera) = cam.skew
+@inline get_skew_angle(cam::PinholeCamera) = atan(get_skew(cam) / get_focal_length_y(cam))
+# Angle between skewed y-axis and orthogonal y-axis
+@inline get_skew_angle_deg(cam::PinholeCamera) = rad2deg(get_skew_angle(cam))
 @inline get_principal_point_x(cam::PinholeCamera) = cam.principal_point_x
 @inline get_principal_point_y(cam::PinholeCamera) = cam.principal_point_y
 @inline get_principal_point(cam::PinholeCamera) = 

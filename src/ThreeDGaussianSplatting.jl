@@ -22,7 +22,9 @@ import CImGui as ig
 import GLFW
 import ModernGL as GL
 import CImGui.lib as lib
-import CSyntax: @c
+import CSyntax: @c, @cstatic
+using Printf
+using Format
 
 
 include("adapt.jl")

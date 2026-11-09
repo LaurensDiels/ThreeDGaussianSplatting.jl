@@ -15,7 +15,7 @@
     backward!(
         fgradients::AbstractFilteredGaussiansGradientsVector{G, I, F},
         rgb_image_grad,
-        render_outputs::RenderOutputs{G, <:Any, F},
+        render_outputs::AbstractRenderOutputs{G, <:Any, F},
         gaussians::AbstractTrainableGaussiansVector{G, I, F},
         camera::AbstractCamera{I, F},
         tiling::Tiling{I},
@@ -37,7 +37,7 @@ We will zero the necessary `fgradients` within this method.
 function backward!(
     fgradients::AbstractFilteredGaussiansGradientsVector{G, I, F},
     rgb_image_grad,
-    render_outputs::RenderOutputs{G, <:Any, F},
+    render_outputs::AbstractRenderOutputs{G, <:Any, F},
     gaussians::AbstractGaussiansVector{G, I, F},  #TODO: not used (directly)?
     camera::AbstractCamera{I, F},
     tiling::Tiling{I},

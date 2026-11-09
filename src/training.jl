@@ -6,7 +6,7 @@
         CWIV <: AbstractVector{<:CameraWithImage{D_GT, I, F}},
         T <: Tiling{I},
         RB <: MutableRenderBuffers{D, I, F},
-        ROUT <: RenderOutputs{D, <:Any, F, RGB},  
+        ROUT <: AbstractRenderOutputs{D, <:Any, F, RGB},  
         TO <: TrainingOptions{I, F},
         GTB <: Union{Nothing, RGB},
         LOSS <: AbstractVector{F},
@@ -44,7 +44,7 @@ mutable struct Trainer{
     CWIV <: AbstractVector{<:CameraWithImage{D_GT, I, F}},
     T <: Tiling{I},
     RB <: MutableRenderBuffers{D, I, F},
-    ROUT <: RenderOutputs{D, <:Any, F, RGB},  
+    ROUT <: AbstractRenderOutputs{D, <:Any, F, RGB},  
     TO <: TrainingOptions{I, F},
     GTB <: Union{Nothing, RGB},
     LOSS <: AbstractVector{F},
@@ -107,10 +107,11 @@ function Trainer(
     height = get_height(first_camera)
 
     render_buffers = MutableRenderBuffers(gaussians_vector, tiling)
-    render_outputs = RenderOutputs(
+    render_outputs = ImmutableRenderOutputs(  # (as long as we have a fixed resolution)
         width, height; 
         array_domain = D, int_type = I, float_type = F,
-        include_transmittance = true, include_depth = false,
+        include_rgb = true, include_transmittance = true,
+        include_depth = false,
         # (as long as we do not have ground truth depths)
         include_last_contributing_indices = true)
 

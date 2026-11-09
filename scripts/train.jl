@@ -1,6 +1,8 @@
 """
     train(
         input_dir, output_dir; 
+        render_options_from_camera = camera -> RenderOptions(camera, Int32(0)),
+        training_options_from_scene = scene -> TrainingOptions(scene),
         show_gui = true, 
         evaluation_iterations = 1000, save_iterations = (7000, 30_000),
         validation_ratio = 0.,
@@ -17,6 +19,14 @@ Train a 3D Gaussian splatting model from provided images.
     general file structure as the reference implementation.
 
 # Keyword arguments
+- `render_options_from_camera`: A function mapping a(ny) camera to the constructor for
+    the `RenderOptions`. This allows setting the rendering options. For example, one can use
+    `cam -> RenderOptions(cam, Int32(0); use_antialiasing = true)` to use antialiasing.
+    (The `Int32(0)` here is the initial spherical harmonics degree and should not be
+    changed.)
+- `training_options_from_scene`: Similar, but now mapping a scene to a `TrainingOptions`.
+    For example, use `scene -> TrainingOptions(scene; nb_iterations = 10_000)` to train for
+    only 10_000 iterations, instead of the normal 30_000.
 - `show_gui`: Whether to visualize the training process using a GUI. Defaults to `true`.
 - `evaluation_iterations`: Either an `AbstractVector` of training iteration numbers after
     which we will compute training and validation losses, or a single `Integer`, in which
@@ -24,14 +34,16 @@ Train a 3D Gaussian splatting model from provided images.
 - `save_iterations`: Similar, but saving the trained Gaussians model.
 - `validation_ratio`: The ratio of validation cameras to total cameras. Defaults to 0,
     meaning we do not set apart a validation set. Use e.g. 20% to set aside 1/5 of the 
-    cameras for validation. Note that this is approximate, as the number of training cameras
+    cameras for validation. Note that this is approximate, as the total number of cameras
     might not be divisible by five.
 - `random_validation_cameras`: When set to `false` (by default) the validation cameras
     will be equidistant in terms of camera index. When set to `true` we use a random
     selection.
-"""
+"""  # TODO: training with antialiasing seems broken? !!!
 function train(
     input_dir, output_dir; 
+    render_options_from_camera = cam -> RenderOptions(cam, Int32(0)),
+    training_options_from_scene = scene -> TrainingOptions(scene),
     show_gui = true, 
     evaluation_iterations = 1000, save_iterations = (7000, 30_000),
     validation_ratio = 0.,
@@ -70,11 +82,9 @@ function train(
     training_scene = Scene(gaussians, training_cameras)  # TODO: or cameras_with_images?
 
     first_camera = first(training_cameras)
-    render_options = RenderOptions(
-        first_camera, get_sh_degree(gaussians),
-    )  # TODO: expose options boundary_clipping_mode, background_color and use_antialiasing
+    render_options = render_options_from_camera(first_camera)
     tiling = Tiling(first_camera)
-    training_options = TrainingOptions(training_scene)
+    training_options = training_options_from_scene(training_scene)
     optimizer = MutableAdamOptimizer(get_gaussians_vector(training_scene), training_options)
 
     trainer = Trainer(gaussians, training_cameras_with_images,  #TODO: just scene?
@@ -85,16 +95,13 @@ function train(
     gui = if show_gui
         GUI(
             gaussians,
-            first_camera,
-            tiling,
-            render_options,          # might be better decoupled  # TODO: stuck at sh deg 0
-            #   --> will be automatically fixed when we use destructured options in GUI
-            trainer.render_buffers;  # fine to couple (memory reuse)
             vsync = false
         )
     else
         NoGUI()
     end
+    set_camera!(gui, first_camera)
+    # TODO: use similar render_options
 
     function compute_losses(rendered_image, gt_image)
         mse_ = mapreduce(
@@ -207,6 +214,7 @@ function process_colmap(images_dir)
     mkpath(distorted_dir)
     db_path = joinpath(distorted_dir, "database.db")
 
+    colmap_is_old = get(ENV, "OLD_COLMAP", "false") == "true"
     colmap_base_cmd_args = if !Sys.iswindows()
         [get(ENV, "TDGS_COLMAP", "colmap")]
         # Default assumption: on PATH.
@@ -227,7 +235,7 @@ function process_colmap(images_dir)
         "--image_path", images_dir,
         "--ImageReader.camera_model", "OPENCV", 
         "--ImageReader.single_camera", "1",
-        "--FeatureExtraction.use_gpu", "1"
+        colmap_is_old ? "--SiftExtraction.use_gpu" : "--FeatureExtraction.use_gpu", "1"
     ]
     run(Cmd(cmd_args))
 
@@ -235,7 +243,7 @@ function process_colmap(images_dir)
         colmap_base_cmd_args...,
         "exhaustive_matcher",
         "--database_path", db_path,
-        "--FeatureMatching.use_gpu", "1"
+        colmap_is_old ? "--SiftMatching.use_gpu" : "--FeatureMatching.use_gpu", "1" 
     ]
     run(Cmd(cmd_args))
 
@@ -247,10 +255,11 @@ function process_colmap(images_dir)
         "--output_path", distorted_dir,
         "--Mapper.ba_global_function_tolerance=0.000001",
         "--Mapper.ba_refine_focal_length", "1",
-        "--Mapper.ba_refine_principal_point", "1",
-        "--Mapper.ba_refine_extra_params", "1"
+        "--Mapper.ba_refine_principal_point", "1", 
+        # (We can handle a non-centered principal point)
+        "--Mapper.ba_refine_extra_params", "1",
+        "--Mapper.ba_use_gpu", "1"  # Gets gracefully ignored when not available
     ]
-    # (We can handle a non-centered principal point)
     run(Cmd(cmd_args))
 
     # There might now be multiple models: 0, 1, etc. We will use the one with the biggest

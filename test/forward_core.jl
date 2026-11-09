@@ -87,7 +87,8 @@ end
                 array_domain = D, int_type = I, float_type = F)
             gaussians = scene.gaussians
             camera = only(scene.cameras)
-            outputs = RenderOutputs(camera; array_domain = D, 
+            outputs = ImmutableRenderOutputs(camera; array_domain = D, 
+                include_rgb = true,
                 include_transmittance = true, 
                 include_depth = true, 
                 include_last_contributing_indices = D <: GPU

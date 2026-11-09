@@ -1,62 +1,18 @@
-# Immutable only: resize creates a new one, possibly sharing memory with the old
-# TODO: why not just (@im_)mutable? (use resize_memory then)
-
-# TODO: also make RGB image optional, but require at least one of the three
-#   When using a GUI and showing e.g. depth, we do not need to render the RGB image
-"""
-    RenderOutputs{
-        D <: ArrayDomain,
-        I <: Integer,
-        F <: AbstractFloat,
-        RGB <: AbstractArray{F, 3},
-        TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
-        DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
-        LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
-    }
-
-Struct specifying which outputs to render. Will also contain these outputs (or `nothing`
-if we do not use them). The outputs are
-- the RGB render (always included)
-- the transmittance image (optional)
-- the depth image (optional)
-- an 'image' containing for each pixel the index of the last contributing sorted duplicated
-    filtered Gaussian index (optional).
-"""
-struct RenderOutputs{
+@im_mutable_with_adapt struct RenderOutputs{
     D <: ArrayDomain,
     I <: Integer,
     F <: AbstractFloat,
-    # Always contains RGB image, others are optional
-    RGB <: AbstractArray{F, 3},
+    RGB <: Union{Nothing, AbstractArray{F, 3}},
     TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
     DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
     LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
+    # Has to contain at least one of these, but not necessarily all of them
 }
     rgb_image::RGB                          # 3 x h x w
     transmittance_image::TRANSMITTANCE      #     h x w
     depth_image::DEPTH                      #     h x w
     last_contributing_sdfgids::LAST_IDS     #     h x w
 
-    """
-        RenderOutputs(
-            rgb_image::RGB,  
-            transmittance_image::TRANSMITTANCE,
-            depth_image::DEPTH,
-            last_contributing_sdfgids::LAST_IDS;
-            int_type = Int32
-        ) where {
-            I <: Integer,
-            F <: AbstractFloat,
-            RGB <: AbstractArray{F, 3},
-            TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
-            DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
-            LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
-        }
-
-    Construct a `RenderOutput` from the supplied arrays or `nothing`s. The keyword argument
-    `int_type` (defaulting to `Int32`) is only used when `LAST_IDS` is `Nothing`, hence
-    contains no integer type.
-    """
     function RenderOutputs(
         rgb_image::RGB,  
         transmittance_image::TRANSMITTANCE,
@@ -66,7 +22,7 @@ struct RenderOutputs{
     ) where {
         I <: Integer,
         F <: AbstractFloat,
-        RGB <: AbstractArray{F, 3},
+        RGB <: Union{Nothing, AbstractArray{F, 3}},
         TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
         DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
         LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
@@ -74,6 +30,8 @@ struct RenderOutputs{
         arrays = filter(!isnothing,
             (rgb_image, transmittance_image, depth_image, last_contributing_sdfgids)
         )
+        isempty(arrays) && throw(ArgumentError(
+            "A `RenderOutputs` needs to contain at least one image!")) 
         array_domains = map(array_domain, arrays)
         allequal(array_domains) || throw(ArgumentError(
             "All (non-`nothing`) images in a `RenderOutputs` need to have the same \
@@ -89,7 +47,7 @@ struct RenderOutputs{
              `size`. Received $(join(last_two_axis_sizes, ' ', " and "))."
         ))
 
-        size(rgb_image, 1) == 3 || throw(DimensionMismatch(
+        isnothing(rgb_image) || size(rgb_image, 1) == 3 || throw(DimensionMismatch(
             "The first axis of `rgb_image` should have `size` `3`! \
              Received $(size(rgb_image, 1))."
         ))
@@ -106,49 +64,152 @@ struct RenderOutputs{
     end
 end
 
-Adapt.@adapt_structure RenderOutputs
+"""
+    AbstractRenderOutputs{
+        D <: ArrayDomain,
+        I <: Integer,
+        F <: AbstractFloat,
+        RGB <: AbstractArray{F, 3},
+        TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
+        DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
+        LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
+    }
+
+Struct specifying which outputs to render. Will also contain these outputs (or `nothing`
+if we do not use them). The outputs are
+- the RGB render (always included)
+- the transmittance image (optional)
+- the depth image (optional)
+- an 'image' containing for each pixel the index of the last contributing sorted duplicated
+    filtered Gaussian index (optional).
+
+Abstract supertype of [`MutableRenderOutputs`](@ref) and [`ImmutableRenderOutputs`](@ref).
+"""
+AbstractRenderOutputs
 
 """
-    RenderOutputs(
+    ImmutableRenderOutputs{
+        D <: ArrayDomain,
+        I <: Integer,
+        F <: AbstractFloat,
+        RGB <: AbstractArray{F, 3},
+        TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
+        DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
+        LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
+    } <: AbstractRenderOutputs{D, I, F, RGB, TRANSMITTANCE, DEPTH, LAST_IDS}
+
+Immutable concrete version of [`AbstractRenderOutputs`](@ref). We refer to the similar
+mutable variant [`MutableRenderOutputs`](@ref) for the documentation of the constructors.
+"""
+ImmutableRenderOutputs
+
+
+@replace(
+    X => (MutableRenderOutputs, ImmutableRenderOutputs),
+    function X(
         width, height;
         array_domain::Type{<:ArrayDomain} = GPU{CUDA.DeviceMemory},
         int_type::Type{<:Integer} = Int32,
         float_type::Type{<:AbstractFloat} = Float32,
-        include_transmittance = true,
-        include_depth = true,
-        include_last_contributing_indices = true,
+        include_rgb = true,
+        include_transmittance = false,
+        include_depth = false,
+        include_last_contributing_indices = false,
     )
-
-Create a new `RenderOutputs` with the provided `width`, `height`, `array_domain` (default: 
-`GPU`), `int_type` (default: `Int32`, regardless of the types of `width` and `height`),
-`float_type` (default: `Float32`).
-
-Apart from the always present rendered RGB image, the selected render outputs will be
-included (all by default).
-"""
-function RenderOutputs(
-    width, height;
-    array_domain::Type{<:ArrayDomain} = GPU{CUDA.DeviceMemory},
-    int_type::Type{<:Integer} = Int32,
-    float_type::Type{<:AbstractFloat} = Float32,
-    include_transmittance = true,
-    include_depth = true,
-    include_last_contributing_indices = true,
+        D = array_domain; I = int_type; F = float_type
+        return X(
+            include_rgb           ? create_array(D, F, (3, height, width)) : nothing,
+            include_transmittance ? create_array(D, F, (height, width))    : nothing,
+            include_depth         ? create_array(D, F, (height, width))    : nothing,
+            include_last_contributing_indices ? 
+                create_array(D, I, (height, width)) : nothing;
+            int_type
+        )
+    end
 )
-    D = array_domain; I = int_type; F = float_type
-    return RenderOutputs(
-        create_array(D, F, (3, height, width)),
-        include_transmittance             ? create_array(D, F, (height, width)) : nothing,
-        include_depth                     ? create_array(D, F, (height, width)) : nothing,
-        include_last_contributing_indices ? create_array(D, I, (height, width)) : nothing;
-        int_type
-    )
-end
 
-"""
-    RenderOutputs(
+@replace(
+    X => (MutableRenderOutputs, ImmutableRenderOutputs),
+    function X(
         cam::AbstractCamera{I, F};
         array_domain::Type{<:ArrayDomain} = GPU{CUDA.DeviceMemory},
+        include_rgb = true,
+        include_transmittance = false,
+        include_depth = false,
+        include_last_contributing_indices = false
+    ) where {I, F}
+        return X(
+            get_width(cam), get_height(cam);
+            array_domain, int_type = I, float_type = F,
+            include_rgb, include_transmittance, include_depth, 
+            include_last_contributing_indices
+        )
+    end
+)
+
+"""
+    MutableRenderOutputs{
+        D <: ArrayDomain,
+        I <: Integer,
+        F <: AbstractFloat,
+        RGB <: AbstractArray{F, 3},
+        TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
+        DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
+        LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
+    } <: AbstractRenderOutputs{D, I, F, RGB, TRANSMITTANCE, DEPTH, LAST_IDS}
+
+Mutable concrete version of [`AbstractRenderOutputs`](@ref). Can be resized, but not used
+in kernels (but will automatically be adapted).
+
+---
+
+    MutableRenderOutputs(
+        rgb_image::RGB,  
+        transmittance_image::TRANSMITTANCE,
+        depth_image::DEPTH,
+        last_contributing_sdfgids::LAST_IDS;
+        int_type = Int32
+    ) where {
+        I <: Integer,
+        F <: AbstractFloat,
+        RGB <: AbstractArray{F, 3},
+        TRANSMITTANCE <: Union{Nothing, <:AbstractMatrix{F}},
+        DEPTH <: Union{Nothing, <:AbstractMatrix{F}},
+        LAST_IDS <: Union{Nothing, <:AbstractMatrix{I}}
+    }
+
+Construct a `MutableRenderOutput` from the supplied arrays or `nothing`s. Not all arguments
+are allowed to be `nothing` at the same time. The keyword argument `int_type`
+(defaulting to `Int32`) is only used when `LAST_IDS` is `Nothing`, hence contains no
+integer type.
+
+---
+
+    MutableRenderOutputs(
+        width, height;
+        array_domain::Type{<:ArrayDomain} = GPU{CUDA.DeviceMemory},
+        int_type::Type{<:Integer} = Int32,
+        float_type::Type{<:AbstractFloat} = Float32,
+        include_rgb = true,
+        include_transmittance = false,
+        include_depth = false,
+        include_last_contributing_indices = false,
+    )
+
+Create a new `MutableRenderOutputs` with the provided `width`, `height`, `array_domain`
+(default: `GPU`), `int_type` (default: `Int32`, regardless of the types of `width` and
+`height`), `float_type` (default: `Float32`).
+
+The other parameters select which outputs to render (by default only RGB). The desired ones
+will depend on the use case. For example, for visualization we only need RGB (and/or depth),
+while for training we need RGB, transmittance and the last contributing indices.
+
+---
+
+    MutableRenderOutputs(
+        cam::AbstractCamera{I, F};
+        array_domain::Type{<:ArrayDomain} = GPU{CUDA.DeviceMemory},
+        include_rgb = true,
         include_transmittance = true,
         include_depth = true,
         include_last_contributing_indices = true
@@ -157,54 +218,49 @@ end
 Like the `width`, `height` constructor, but now extracting this information, as well as the
 `int_type` and `float_type` from the provided camera.
 """
-function RenderOutputs(
-    cam::AbstractCamera{I, F};
-    array_domain::Type{<:ArrayDomain} = GPU{CUDA.DeviceMemory},
-    include_transmittance = true,
-    include_depth = true,
-    include_last_contributing_indices = true
-) where {I, F}
-    return RenderOutputs(
-        get_width(cam), get_height(cam);
-        array_domain, int_type = I, float_type = F,
-        include_transmittance, include_depth, include_last_contributing_indices
-    )
-end
-
-
-
-@inline Base.size(ro::RenderOutputs) = size(ro.rgb_image)[2:3]
-@inline get_width(ro::RenderOutputs) = size(ro.rgb_image)[3]
-@inline get_height(ro::RenderOutputs) = size(ro.rgb_image)[2]
-
-@inline has_rgb_image(::RenderOutputs) = true
-@inline get_rgb_image(ro::RenderOutputs) = ro.rgb_image
-@inline has_transmittance_image(ro::RenderOutputs) = typeof(ro).parameters[5] !== Nothing
-# Could also dispatch on the fifth type, i.e.
-#   ...(::RenderOutputs) = true
+MutableRenderOutputs
+   
+@inline has_rgb_image(ro::AbstractRenderOutputs) = typeof(ro).parameters[4] !== Nothing
+# Could also dispatch on the fourth  type, i.e.
+#   ...(::AbstractRenderOutputs) = true
 # and
-#   ...(::RenderOutputs{..., Nothing}) = false  
+#   ...(::AbstractRenderOutputs{..., Nothing}) = false  
 # but this is quite complicated as the former implicitly contains all the relations between
 # types, which our second method should also include to be more specific (i.e. not just 
 # <: Any)
-# Also, isnothing(ro.transmittance_image) gets computed at compile-time, so that is an
-# alternative.
-@inline get_transmittance_image(ro::RenderOutputs) = ro.transmittance_image
-@inline has_depth_image(ro::RenderOutputs) = typeof(ro).parameters[6] !== Nothing
-@inline get_depth_image(ro::RenderOutputs) = ro.depth_image
-@inline has_last_contributing_sdfgids(ro::RenderOutputs) = 
+# (Also isnothing(ro.rgb_image) gets computed at compile-time, so that is an alternative.)
+@inline get_rgb_image(ro::AbstractRenderOutputs) = ro.rgb_image
+@inline has_transmittance_image(ro::AbstractRenderOutputs) = 
+    typeof(ro).parameters[5] !== Nothing
+@inline get_transmittance_image(ro::AbstractRenderOutputs) = ro.transmittance_image
+@inline has_depth_image(ro::AbstractRenderOutputs) = typeof(ro).parameters[6] !== Nothing
+@inline get_depth_image(ro::AbstractRenderOutputs) = ro.depth_image
+@inline has_last_contributing_sdfgids(ro::AbstractRenderOutputs) = 
     typeof(ro).parameters[7] !== Nothing
-@inline get_last_contributing_sdfgids(ro::RenderOutputs) = ro.last_contributing_sdfgids
+@inline get_last_contributing_sdfgids(ro::AbstractRenderOutputs) = ro.last_contributing_sdfgids
 
+@inline function Base.size(ro::AbstractRenderOutputs)
+    if has_transmittance_image(ro)  # These ifs get compiled away
+        return size(get_transmittance_image(ro))
+    elseif has_depth_image(ro)
+        return size(get_depth_image(ro))
+    elseif has_last_contributing_sdfgids(ro)
+        return size(get_last_contributing_sdfgids(ro))
+    else
+    # i.e. elseif has_rgb_image(ro), but with else the compiler knows we always return a
+    # Tuple{Int, Int}, and never nothing
+        return size(get_rgb_image(ro))[2:3]
+    end
+end
+@inline get_width(ro::AbstractRenderOutputs) = size(ro)[2]
+@inline get_height(ro::AbstractRenderOutputs) = size(ro)[1]
 
 """
-    maybe_unsafe_free!(::RenderOutputs)
+    maybe_unsafe_free!(::AbstractRenderOutputs)
 
-Call `maybe_unsafe_free!` on outputs. When the `ArrayDomain <: GPU` we then `unsafe_free!`
-all non-`nothing` outputs. If not, nothing happens.
+Call `maybe_unsafe_free!` on all output (array)s.
 """
-maybe_unsafe_free!(::RenderOutputs) = nothing
-function maybe_unsafe_free!(ro::RenderOutputs{<:GPU})
+function maybe_unsafe_free!(ro::AbstractRenderOutputs)
     maybe_unsafe_free!(get_rgb_image(ro))
     maybe_unsafe_free!(get_transmittance_image(ro))
     maybe_unsafe_free!(get_depth_image(ro))
@@ -213,70 +269,51 @@ function maybe_unsafe_free!(ro::RenderOutputs{<:GPU})
 end
 
 """
-    resize!(ro::RenderOutputs{D, I, F}, new_size; free = D <: GPU) where {D, I, F}
+    resize!(mro::MutableRenderOutputs{D, I, F}, new_size; free = D <: GPU) where {D, I, F}
 
-Create a _new_ `RenderOutputs` with the provided size. If this new size is smaller than the
-old, we will reuse the memory from the old `RenderOutputs`. Consequently, the old one
-should no longer be used, hence the `!` (but if `!free` it is technically still possible).
+Resize a `MutableRenderOutputs` to the provided size.
 
-When the new size is the same as the old, we just return `ro` again (and do not free
-anything).
+!!! The currently stored images will be lost. They will not be downscaled or upscaled.
 
 # Arguments
-- `ro`: The input `RenderOutputs`.
-- `new_size`: The `size` (height, width) of the output `RenderOutputs`.
-- `free`: Whether the memory of the input `RenderOutputs` should be marked as freeable.
-    Defaults to `true` if the array domain is `GPU`, and `false` otherwise (in which case
-    we cannot free anything anyways).
-    When set to `true` the input `RenderOutputs` becomes unusable. (When `new_size` is
-    smaller than the old size, the part of the memory we reuse is of course still
-    accessible). 
+- `mro`: The input `MutableRenderOutputs`.
+- `new_size`: The `size` (height, width) after resizing.
 """
-function resize!(ro::RenderOutputs{D, I, F}, new_size; free = D <: GPU) where {D, I, F}
-    size(ro) == new_size && return ro
-
-    new_rgb_image = resize_memory(ro.rgb_image, (3, new_size...); free)
-    new_transmittance_image = if has_transmittance_image(ro)
-        resize_memory(ro.transmittance_image, new_size; free)
-    else
-        nothing
+function resize!(mro::MutableRenderOutputs, new_size)
+    
+    if has_rgb_image(mro) 
+        mro.rgb_image = resize_memory(mro.rgb_image, (3, new_size...))
     end
-    new_depth_image = if has_depth_image(ro)
-        resize_memory(ro.depth_image, new_size; free)
-    else
-        nothing
+    if has_transmittance_image(mro) 
+        mro.transmittance_image = resize_memory(mro.transmittance_image, new_size)
     end
-    new_last_contributing_sdfgids = if has_last_contributing_sdfgids(ro)
-        resize_memory(ro.last_contributing_sdfgids, new_size; free)
-    else
-        nothing
+    if has_depth_image(mro)
+        mro.depth_image = resize_memory(mro.depth_image, new_size)
     end
-
-    return RenderOutputs(
-        new_rgb_image,
-        new_transmittance_image,
-        new_depth_image,
-        new_last_contributing_sdfgids
-    )
+    if has_last_contributing_sdfgids(mro)
+        mro.last_contributing_sdfgids = resize_memory(
+            mro.last_contributing_sdfgids, new_size)
+    end
+    return Nothing
 end
 
 """
-    resize!(ro::RenderOutputs{D}, cam::AbstractCamera; free = D <: GPU) where {D}
+    resize!(mro::MutableRenderOutputs, cam::AbstractCamera)
 
 Like the `new_size` version, but deriving this from the provided camera.
 """
-function resize!(ro::RenderOutputs{D}, cam::AbstractCamera; free = D <: GPU) where {D}
-    return resize!(ro, (get_height(cam), get_width(cam)), free)
-end
+resize!(mro::MutableRenderOutputs, cam::AbstractCamera) =
+    resize!(mro, (get_height(cam), get_width(cam)))
 
 
 function Base.show(
     io::IO, 
     ::MIME"text/plain", 
-    ro::RenderOutputs{D, I, F}
+    ro::AbstractRenderOutputs{D, I, F}
 ) where {D, I, F}
+    RO = typeof(ro)
     print(io, 
-        "RenderOutputs{$D, $I, $F} of size ", size(ro), ", with \n",
+        "$RO{$D, $I, $F} of size ", size(ro), ", with \n",
         "  an rgb image \n",
         "  ", has_transmittance_image(ro) ? "a " : "no ", "transmittance image \n",
         "  ", has_depth_image(ro) ? "a " : "no ", "depth image \n",
@@ -368,10 +405,22 @@ for the tile dimensions.
 function Tiling(camera::AbstractCamera{I}) where I
     screen_width = get_width(camera)
     screen_height = get_height(camera)
+    return Tiling(
+        screen_width, screen_height, 
+        get_default_tile_size(screen_width, screen_height)...
+    )
+end
+
+"""
+    get_default_tile_size(screen_width::I, screen_height) where I
+
+Return the heuristic tile width and height based on the render screen size.
+"""
+function get_default_tile_size(screen_width::I, screen_height) where I
     nb_px = screen_width * screen_height
     tile_width = I(16)
     tile_height = nb_px > 1_500_000 ? I(32) : I(16)
-    return Tiling(screen_width, screen_height, tile_width, tile_height)
+    return tile_width, tile_height
 end
 
 # The function below are trivial. We just add them to ensure we don't accidentally mix up
@@ -518,25 +567,26 @@ const DEFAULT_MIN_AA_FACTOR_F64 = 0.0005
     RenderOptions{
         I <: Integer, F <: AbstractFloat, 
         SH_DEGREE, 
-        BOUNDARY_CLIPPING_MODE <: BoundaryClippingMode
+        BOUNDARY_CLIPPING_MODE <: BoundaryClippingMode,
+        USE_ANTIALIASING
     }
 
-Struct containing both static (spherical harmonics degree, boundary clipping mode) and
-runtime (background_color, antialiasing, minimal and maximal alpha, minimal transmittance,
-dilation terms (in continuous pixel coordinates), clipping values (in the same coordinate
-system)) options for rendering.
+Struct containing both static (spherical harmonics degree, boundary clipping mode,
+antialiasing) and runtime (background_color, minimal and maximal alpha, minimal
+transmittance, dilation terms (in continuous pixel coordinates), clipping values (in the
+same coordinate system)) options for rendering.
 """
 struct RenderOptions{
     I <: Integer, F <: AbstractFloat, 
     SH_DEGREE,  # of type I
-    BOUNDARY_CLIPPING_MODE <: BoundaryClippingMode
+    BOUNDARY_CLIPPING_MODE <: BoundaryClippingMode,
+    USE_ANTIALIASING
 }
     # Put options which we do not intent to change (much) as static parameters,
     # only when we expect performance improvements (e.g. when used in loop boundaries).
     background_color::SVector{3, F}
     # TODO: would we not similarly need a background depth?
     
-    use_antialiasing::Bool
     antialiasing_min_factor::F
 
     min_alpha::F  # as opacity >= alpha, this also serves as min_opacity
@@ -554,44 +604,85 @@ end
 
 """
     RenderOptions(
+        width, height, 
+        sh_degree,
+        boundary_clipping_mode::Type{<:BoundaryClippingMode} = CovarianceBoundaryClamp;
+        int_type = Int32, float_type = Float32,
+        background_color = zero(SVector{3, float_type}),
+        use_antialiasing = false,
+        min_alpha = float_type(DEFAULT_MIN_ALPHA_F64),
+        max_alpha = float_type(DEFAULT_MAX_ALPHA_F64),
+        min_transmittance = float_type(DEFAULT_MIN_TRANSMITTANCE_F64),
+        dilation_x_px = float_type(DEFAULT_DILATION_PX_F64),
+        dilation_y_px = float_type(DEFAULT_DILATION_PX_F64),
+        clip_x_min_nc = float_type(-1 - DEFAULT_CLIPPING_MARGIN_NC_F64),
+        clip_x_max_nc = float_type(1 + DEFAULT_CLIPPING_MARGIN_NC_F64),
+        clip_y_min_nc = float_type(-1 - DEFAULT_CLIPPING_MARGIN_NC_F64),
+        clip_y_max_nc = float_type(1 + DEFAULT_CLIPPING_MARGIN_NC_F64),
+    )
+
+Construct a `RenderOptions` from the supplied rendering resolution, spherical harmonics
+degree and boundary clipping mode. There are also various keyword arguments, most notably
+the background color and whether to use (3DGS-style) antialiasing (which is more limited
+than Mip-Splatting). 
+"""
+function RenderOptions(
+    width, height, 
+    sh_degree,
+    boundary_clipping_mode::Type{<:BoundaryClippingMode} = CovarianceBoundaryClamp;
+    int_type = Int32, float_type = Float32,
+    background_color = zero(SVector{3, float_type}),
+    use_antialiasing = false,
+    min_alpha = float_type(DEFAULT_MIN_ALPHA_F64),
+    max_alpha = float_type(DEFAULT_MAX_ALPHA_F64),
+    min_transmittance = float_type(DEFAULT_MIN_TRANSMITTANCE_F64),
+    dilation_x_px = float_type(DEFAULT_DILATION_PX_F64),
+    dilation_y_px = float_type(DEFAULT_DILATION_PX_F64),
+    clip_x_min_nc = float_type(-1 - DEFAULT_CLIPPING_MARGIN_NC_F64),
+    clip_x_max_nc = float_type(1 + DEFAULT_CLIPPING_MARGIN_NC_F64),
+    clip_y_min_nc = float_type(-1 - DEFAULT_CLIPPING_MARGIN_NC_F64),
+    clip_y_max_nc = float_type(1 + DEFAULT_CLIPPING_MARGIN_NC_F64),
+)
+    I = int_type; F = float_type
+    width = I(width); height = I(height)
+    n2p_x = create_coordinate_converter(NormalizedCoordinates, PixelCoordinates, F, width)
+    n2p_y = create_coordinate_converter(NormalizedCoordinates, PixelCoordinates, F, height)
+    return RenderOptions{
+        I, F, I(sh_degree), boundary_clipping_mode, use_antialiasing
+    }( 
+        convert(SVector{3, F}, background_color),
+        F(DEFAULT_MIN_AA_FACTOR_F64),
+        F(min_alpha), 
+        F(max_alpha),
+        F(min_transmittance),
+        F(dilation_x_px),
+        F(dilation_y_px),
+        n2p_x(F(clip_x_min_nc)), 
+        n2p_x(F(clip_x_max_nc)), 
+        n2p_y(F(clip_y_min_nc)), 
+        n2p_y(F(clip_y_max_nc)), 
+    )
+end
+
+"""
+    RenderOptions(
         camera::AbstractCamera{I, F}, 
         sh_degree,
         boundary_clipping_mode::Type{<:BoundaryClippingMode} = CovarianceBoundaryClamp;
-        background_color = zero(SVector{3, F}),
-        use_antialiasing = false
+        kwargs...
     ) where {I, F}
 
-Construct a `RenderOptions` from a `camera`, spherical harmonics degree, background color,
-and the choice of whether to use (3DGS-style) antialiasing (which is more limited than
-Mip-Splatting), and default values. 
+Like the `width`, `height` version, but where these (and `int_type` and `float_type`) are
+extracted from the provided `camera`.
 """
 function RenderOptions(
     camera::AbstractCamera{I, F}, 
     sh_degree,
     boundary_clipping_mode::Type{<:BoundaryClippingMode} = CovarianceBoundaryClamp;
-    background_color = zero(SVector{3, F}),
-    use_antialiasing = false
+    kwargs...
 ) where {I, F}
-    CLIPPING_MARGIN = F(DEFAULT_CLIPPING_MARGIN_NC_F64)
     width = get_width(camera); height = get_height(camera)
-    n2p_x = create_coordinate_converter(NormalizedCoordinates, PixelCoordinates, F, width)
-    n2p_y = create_coordinate_converter(NormalizedCoordinates, PixelCoordinates, F, height)
-    return RenderOptions{
-        I, F, I(sh_degree), boundary_clipping_mode
-    }( 
-        background_color,
-        use_antialiasing,
-        F(DEFAULT_MIN_AA_FACTOR_F64),
-        F(DEFAULT_MIN_ALPHA_F64), 
-        F(DEFAULT_MAX_ALPHA_F64),
-        F(DEFAULT_MIN_TRANSMITTANCE_F64),
-        F(DEFAULT_DILATION_PX_F64),
-        F(DEFAULT_DILATION_PX_F64),
-        n2p_x(-1 - CLIPPING_MARGIN), 
-        n2p_x(1 + CLIPPING_MARGIN),
-        n2p_y(-1 - CLIPPING_MARGIN),
-        n2p_y(1 + CLIPPING_MARGIN)
-    )
+    return RenderOptions(width, height, sh_degree, boundary_clipping_mode; kwargs...)
 end
 
 @inline int_type(::RenderOptions{I}) where I = I
@@ -599,6 +690,7 @@ end
 
 @inline get_sh_degree(::RenderOptions{<:Any, <:Any, SH_DEGREE}) where SH_DEGREE = SH_DEGREE
 @inline get_boundary_clipping_mode(ro::RenderOptions) = typeof(ro).parameters[4]
+@inline get_use_antialiasing(ro::RenderOptions) = typeof(ro).parameters[5]
 
 @inline get_min_alpha(ro::RenderOptions) = ro.min_alpha
 @inline get_min_transmittance(ro::RenderOptions) = ro.min_transmittance
@@ -607,7 +699,6 @@ end
 @inline get_dilation_y(ro::RenderOptions) = ro.dilation_y
 @inline get_dilation(ro::RenderOptions) = SA[get_dilation_x(ro), get_dilation_y(ro)]
 @inline get_background_color(ro::RenderOptions) = ro.background_color
-@inline get_use_antialiasing(ro::RenderOptions) = ro.use_antialiasing
 @inline get_antialiasing_min_factor(ro::RenderOptions) = ro.antialiasing_min_factor
 
 """
@@ -617,7 +708,10 @@ Return a new `RenderOptions` with `get_sh_degree(...) == I(sh_degree)`.
 """
 function set_sh_degree(ro::RenderOptions{I, F}, sh_degree) where {I, F}
     _check_sh_degree(sh_degree)
-    return RenderOptions{I, F, I(sh_degree), get_boundary_clipping_mode(ro)}(
+    return RenderOptions{
+        I, F, 
+        I(sh_degree), get_boundary_clipping_mode(ro), get_use_antialiasing(ro)
+    }(
         (getfield(ro, fn) for fn in fieldnames(typeof(ro)))...
     )
 end
@@ -645,10 +739,10 @@ end
 const INVALID_LAST_CONTRIBUTING_SDFGIDX_I64 = 0
 
 function render_void!(
-    outputs::RenderOutputs{D, I, F}, 
+    outputs::AbstractRenderOutputs{D, I, F}, 
     options::RenderOptions
 ) where {D, I, F}
-    fill!(
+    has_rgb_image(outputs) && fill!(
         reinterpret(reshape, SVector{3, F}, get_rgb_image(outputs)),  # Matrix{SVector{3}}
         get_background_color(options))
     
@@ -1551,7 +1645,7 @@ end
 end
 
 function MutableRenderBuffers(
-    gv::AbstractGaussiansVector{D, I}, t::Tiling,
+    gv::AbstractGaussiansVector{D, I}, nb_tiles,
 ) where {
     D, I
 }
@@ -1572,9 +1666,13 @@ function MutableRenderBuffers(
         create_array(D, Int32, 0),              # sdfgidx_to_fgidx
         create_array(D, UInt8, 0),              # sorting_buffer
 
-        create_array(D, I, get_nb_tiles(t))     # tiles_end_sdfgidx
+        create_array(D, I, nb_tiles)            # tiles_end_sdfgidx
     )
 end
+
+MutableRenderBuffers(gv::AbstractGaussiansVector, t::Tiling) = MutableRenderBuffers(
+    gv, get_nb_tiles(t)
+)
 
 
 """
@@ -1654,6 +1752,17 @@ Construct a `MutableRenderBuffers` from the individual buffers.
 ---
 
     MutableRenderBuffers(
+        gv::AbstractGaussiansVector{D, I}, nb_tiles,
+    ) where {
+        D, I
+    }
+
+    Use the 3D Gaussians vector and (1D) number of tiles to construct a
+    `MutableRenderBuffers`, which will be filled with garbage.
+
+---
+
+    MutableRenderBuffers(
         gv::AbstractGaussiansVector{D, I}, t::Tiling
     ) where {
         D, I
@@ -1694,6 +1803,25 @@ function set_nb_dfgaussians!(
 end
 
 @inline get_nb_dfgaussians(rb::AbstractRenderBuffers) = rb.nb_dfgaussians
+@inline get_nb_fgaussians(rb::AbstractRenderBuffers) = length(rb.f2dgv)
+
+"""
+    set_nb_tiles!(
+        rb::MutableRenderBuffers, nb_tiles; 
+        free = true
+    )
+
+Set the (1D) number of tiles, resizing the corresponding buffer in the process. `free`
+determines if we `maybe_unsafe_free!` the old one.
+"""
+function set_nb_tiles!(
+    rb::MutableRenderBuffers, nb_tiles; 
+    free = true
+)
+    rb.tiles_end_sdfgidx = resize_memory(rb.tiles_end_sdfgidx, nb_tiles; free)
+end
+
+@inline get_nb_tiles(rb::AbstractRenderBuffers) = length(rb.tiles_end_sdfgidx)
 
 """
     maybe_unsafe_free!(rb::AbstractRenderBuffers)

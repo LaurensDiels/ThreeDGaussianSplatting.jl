@@ -22,12 +22,12 @@ An implementation of 3D Gaussian Splatting in the Julia programming language.
 - A compatible CPU (host) compiler.
     On Windows this is `cl.exe` from Visual Studio. On Linux you can use `g++`. By default we assume this compiler is on the `PATH`. If not, use `ENV["TDGS_HOST_COMPILER"] = ...` to point to the correct executable, including the version. For example, you could use `ENV["TDGS_HOST_COMPILER"] = g++-12`.
 
-- [COLMAP](https://colmap.github.io) with CUDA support, if you want to train 3DGS models starting from images. We require version 3.13 or newer.
+- [COLMAP](https://colmap.github.io) with CUDA support, if you want to train 3DGS models starting from images. Normally we require version 3.13 or newer. If you have an older version you can still try your luck using `ENV["OLD_COLMAP"] = "true"` (which has been tested to work for version 3.12).
 
 
 ### Installing ThreeDGaussianSplatting.jl
 
-Our package is not in the general Julia registry, and we have to plans to request inclusion. Therefore, in a Julia REPL, use the GitHub link:
+Our package is not in the general Julia registry, and we currently have no plans to request inclusion. Therefore, in a Julia REPL, use the GitHub link:
 ```julia-repl
 julia> using Pkg; Pkg.add(url="https://github.com/LaurensDiels/ThreeDGaussianSplatting.jl")
 ```
@@ -53,7 +53,7 @@ julia> using ThreeDGaussianSplatting
 
 julia> Scripts.train("/path/to/images/directory", "/path/to/output/directory")
 ```
-(using appropriate paths). By default this will show the training process using an interactive GUI. This will make training a bit slower. If you do not need the gui, you can set the keyword argument `show_gui` to `false`:
+(using appropriate paths). By default this will show the training process using an interactive GUI. This will make training a bit slower. If you do not need the GUI, you can set the keyword argument `show_gui` to `false`:
 ```julia-repl
 julia> Scripts.train(...; show_gui = false)
 ```
@@ -72,6 +72,7 @@ julia> Scripts.render("/path/to/trained/3DGS/model")
 ```
 The path here can refer to a trained `.ply` file, or the output directory from the training (by us or the reference 3DGS implementation).
 
+The most important underlying function here is `render!`.
 
 ## Links
 - Reference 3DGS implementation: <https://github.com/graphdeco-inria/gaussian-splatting>

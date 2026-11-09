@@ -157,7 +157,8 @@ end
     normalization_jacobian(unnormed::StaticVector{N})
 
 Create a `StaticMatrix{N, N}` representing the Jacobian of the normalization
-`unnormed ↦ normed := normed ./ norm(normed)`, where `norm` takes the Euclidean (2-)norm.
+`unnormed ↦ normed := unnormed ./ norm(unnormed)`, where `norm` takes the Euclidean
+(2-)norm.
 """
 @inline function normalization_jacobian(unnormed::StaticVector{N}) where N
     inv_norm = inv(sqrt(sum(t -> t^2, unnormed)))
