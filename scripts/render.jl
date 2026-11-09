@@ -53,6 +53,5 @@ function render(path; iterations = nothing)
         update!(gui)
     end
 
-    maybe_unsafe_free!(render_buffers)
     maybe_unsafe_free!(gaussians)
 end

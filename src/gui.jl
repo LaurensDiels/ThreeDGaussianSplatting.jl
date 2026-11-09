@@ -1809,6 +1809,9 @@ function close!(gui::GUI)
     ig.DestroyContext(gui.ctx)
     GLFW.DestroyWindow(gui.window)
 
+    maybe_unsafe_free!(gui.render_outputs)
+    maybe_unsafe_free!(gui.render_buffers)
+
     return nothing
 end
 
