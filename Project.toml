@@ -32,7 +32,7 @@ Underscores = "d9a01c3f-67ce-4d8c-9b55-35f6e4050bb1"
 
 [compat]
 Adapt = "4.5.2"
-CImGui = "9.0.0"
+CImGui = "9.0.0, 10.1"
 CSyntax = "0.4.1"
 CUDA = "6.0.0"
 ColorTypes = "0.12.1"
