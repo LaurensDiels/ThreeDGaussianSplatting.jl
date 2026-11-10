@@ -351,6 +351,7 @@ function backward_project_fgaussians_kernel!(
         cov2d_lower_grad = compute_cov2d_lower_grad(
             get_inverse_covariance_lower_grad_sv(fgg),
             get_inverse_covariance_lower_sv(f2dg),
+            opacity_grad,
             original_opacity,
             render_options
         )
@@ -462,7 +463,7 @@ When we use antialiasing we also need the `original_opacity` (before antialiasin
 and dilations in `render_options`.
 """
 @inline function compute_cov2d_lower_grad(
-    icov2d_lower_grad, icov2d_lower, original_opacity, render_options
+    icov2d_lower_grad, icov2d_lower, opacity_grad, original_opacity, render_options
 )
     a, b, d = icov2d_lower
     a_sq = a^2; ab = a * b; b_sq = b^2; bd = b * d; d_sq = d^2; ad = a * d
@@ -482,7 +483,7 @@ and dilations in `render_options`.
         Dy = get_dilation_y(render_options)
         DxDy_det = (ad - b_sq) * Dx * Dy
         b2 = b + b
-        cov2d_lower_grad = cov2d_lower_grad .+ original_opacity .* SA[
+        cov2d_lower_grad = cov2d_lower_grad .+ (original_opacity * opacity_grad) .* SA[
             a_sq * Dx + b_sq * Dx - a * DxDy_det,
             b2 * (a * Dx + d * Dy - DxDy_det),
             b_sq * Dx + d^2 * Dy - d * DxDy_det

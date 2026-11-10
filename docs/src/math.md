@@ -245,7 +245,7 @@ In the projection phase we can again drop the subscripts.
     *   $\pdiff{L}{s_i^{(f)}} = \pdiff{L}{s_i} s_i$
 
 *   $\pdiff{L}{a^{(f)}} = \pdiff{L}{a} \pdiff{a}{a^{(f)}} = \pdiff{L}{a} a(1 - a) \in \mathbb{R}$, as $\sigma'(x) = \sigma(x)(1 - \sigma(x))$. 
-    * If we use antialiasing, $a = a^{(D)} = \lambda \sigma(a^{(f)}) = \lambda a^{(0)}$ for some constant $\lambda \in \mathbb{R}$ (quotient of determinants of 2D covariance matrices). Then $\pdiff{a}{a^{(f)}} = \lambda \sigma'(a^{(f)}) = \lambda \sigma(a^{(f)}) (1 - \sigma(a^{(f)})) = a^{(D)} (1 - a^{(0)})$
+    * If we use antialiasing, $a = a^{(D)} = \lambda a^{(0)} = \lambda \sigma(a^{(f)})$ for some constant $\lambda \in \mathbb{R}$ (quotient of determinants of 2D covariance matrices). Then $\pdiff{a}{a^{(f)}} = \lambda \sigma'(a^{(f)}) = \lambda \sigma(a^{(f)}) (1 - \sigma(a^{(f)})) = a^{(D)} (1 - a^{(0)})$
 
 
 #### Symmetric matrices

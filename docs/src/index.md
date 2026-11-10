@@ -8,7 +8,7 @@ An implementation of 3D Gaussian Splatting in the Julia programming language.
 
 - An NVIDIA graphics card.
 
-- Julia 1.13 (or newer). The recommended way to install Julia is via [Juliaup](https://github.com/julialang/juliaup). You can find instructions at https://julialang.org/downloads/.
+- Julia 1.13 (or newer). The recommended way to install Julia is via [Juliaup](https://github.com/julialang/juliaup). You can find instructions at <https://julialang.org/downloads/>.
 
 - CUDA toolkit. 
 

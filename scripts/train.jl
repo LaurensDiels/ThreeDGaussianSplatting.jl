@@ -39,7 +39,7 @@ Train a 3D Gaussian splatting model from provided images.
 - `random_validation_cameras`: When set to `false` (by default) the validation cameras
     will be equidistant in terms of camera index. When set to `true` we use a random
     selection.
-"""  # TODO: training with antialiasing seems broken? !!!
+"""
 function train(
     input_dir, output_dir; 
     render_options_from_camera = cam -> RenderOptions(cam, Int32(0)),
