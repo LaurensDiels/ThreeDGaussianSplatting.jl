@@ -182,7 +182,6 @@ function train(
             training_step!(trainer) 
             maybe_save()
         end
-        close!(gui)
     catch e
         if e isa InterruptException
             println("Stopping training")

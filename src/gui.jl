@@ -371,7 +371,6 @@ macro maybe_timed(on_gpu, should_time, ex)
     end
 end
 
-# Implement update!, close!, has_closed, is_running
 """
     AbstractGUI
 
@@ -1077,13 +1076,13 @@ end
     update!(gui::GUI)
 
 Update the GUI. This method contains the core CImGUI steps and will call
-[`update_custom!`](@ref) for e.g. our custom rendering.
+[`update_custom!`](@ref) for e.g. our custom rendering. When the gui `has_stopped` we do
+nothing.
 """
 function update!(gui::GUI)
     gui.has_stopped && return
     if GLFW.WindowShouldClose(gui.window)
         close!(gui)
-        gui.has_stopped = true
         return
     end
 
@@ -1798,7 +1797,8 @@ end
     close!(gui::GUI)
 
 Close the GUI. Should only be called when we are done (`has_stopped`). If so, we will
-clean everything up. If `!has_stopped`, we just return without doing anything.
+clean everything up and put `has_stopped` to `true`. If `!has_stopped` (at the start),
+we just return without doing anything.
 """
 function close!(gui::GUI)
     has_stopped(gui) && return nothing
@@ -1811,6 +1811,8 @@ function close!(gui::GUI)
 
     maybe_unsafe_free!(gui.render_outputs)
     maybe_unsafe_free!(gui.render_buffers)
+
+    gui.has_stopped = true
 
     return nothing
 end

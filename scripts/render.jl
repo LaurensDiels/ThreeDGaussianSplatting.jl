@@ -52,6 +52,7 @@ function render(path; iterations = nothing)
     while !has_stopped(gui)
         update!(gui)
     end
+    close!(gui)
 
     maybe_unsafe_free!(gaussians)
 end
